@@ -14,6 +14,7 @@ class Gaussian():
         self.sample_size = sample_size
         self.mean = mean
         self.rho = rho
+        self.cov = (np.identity(len(self.mean))+self.rho*np.identity(len(self.mean))[::-1]).tolist()
 
     @property
     def data(self):
@@ -23,10 +24,10 @@ class Gaussian():
         """
         if len(self.mean)%2 == 1:
             raise ValueError("length of mean array is assummed to be even")
-        cov = (np.identity(len(self.mean))+self.rho*np.identity(len(self.mean))[::-1]).tolist()
+        
         return np.random.multivariate_normal(
             mean=self.mean,
-            cov=cov,
+            cov=self.cov,
             size=self.sample_size)
 
     @property
@@ -36,3 +37,33 @@ class Gaussian():
             raise ValueError("length of mean array is assummed to be even")
         dim = len(self.mean)//2
         return -0.5*np.log(1-self.rho**2)*dim
+    
+    def I(self, x,y):
+        # cov = np.array(self.rho)
+        if len(self.mean)%2 == 1:
+            raise ValueError("length of mean array is assummed to be even")
+        dim = len(self.mean)//2
+        covMat, mu = self.cov, np.array(self.mean)
+        def fxy(x,y):
+            if type(x)==np.float64 or type(x)==float:
+                X = np.array([x, y])
+            else:
+                X = np.concatenate((x,y))
+            temp1 = np.matmul(np.matmul(X-mu , np.linalg.inv(covMat)), (X-mu).transpose())
+            return np.exp(-.5*temp1) / (((2*np.pi)**(dim))* np.sqrt(np.linalg.det(covMat))) 
+
+        def fx(x):
+            if type(x)==np.float64 or type(x)==float:
+                return np.exp(-(x-mu[0])**2/(2*covMat[0,0])) / np.sqrt(2*np.pi*covMat[0,0])
+            else:
+                temp1 = np.matmul(np.matmul(x-mu[0:dim] , np.linalg.inv(covMat[0:dim,0:dim])), (x-mu[0:dim]).transpose())
+                return np.exp(-.5*temp1) / (((2*np.pi)**(dim /2))* np.sqrt(np.linalg.det(covMat[0:dim,0:dim])))
+
+        def fy(y):
+            if type(y)==np.float64 or type(y)==float:
+                return np.exp(-(y-mu[1])**2/(2*covMat[1,1])) / np.sqrt(2*np.pi*covMat[1,1])*dim
+            else:
+                temp1 = np.matmul(np.matmul(y-mu[-dim:] , np.linalg.inv(covMat[-dim:,-dim:])), (y-mu[-dim:]).transpose())
+                return np.exp(-.5*temp1) / (((2*np.pi)**(dim /2))* np.sqrt(np.linalg.det(covMat[-dim:,-dim:])))
+
+        return np.log(fxy(x, y)/(fx(x)*fy(y)))

@@ -125,3 +125,24 @@ class MixedGaussian():
         con_entropy = mix2*hxy1[0] + (1-mix2)*hxy2[0]
 #       print(hxy[0], hxy1[0], hxy2[0])    
         return hxy[0] - con_entropy
+        
+    def I(self, x,y):
+        mix, covMat1, covMat2, mu1, mu2 = self.mix, self.covMat1, self.covMat2, self.mu, self.mu
+        def fxy(x,y):
+            X = np.array([x, y])
+            temp1 = np.matmul(np.matmul(X-mu1 , np.linalg.inv(covMat1)), (X-mu1).transpose() )
+            temp2 = np.matmul(np.matmul(X-mu2 , np.linalg.inv(covMat2)), (X-mu2).transpose() )
+            return mix*np.exp(-.5*temp1) / (2*np.pi * np.sqrt(np.linalg.det(covMat1))) \
+                    + (1-mix)*np.exp(-.5*temp2) / (2*np.pi * np.sqrt(np.linalg.det(covMat2)))
+
+        def fx(x):
+            return mix*np.exp(-(x-mu1[0])**2/(2*covMat1[0,0])) / np.sqrt(2*np.pi*covMat1[0,0]) \
+                    + (1-mix)*np.exp(-(x-mu2[0])**2/(2*covMat2[0,0])) / np.sqrt(2*np.pi*covMat2[0,0])
+
+        def fy(y):
+            return mix*np.exp(-(y-mu1[1])**2/(2*covMat1[1,1])) / np.sqrt(2*np.pi*covMat1[1,1]) \
+                    + (1-mix)*np.exp(-(y-mu2[1])**2/(2*covMat2[1,1])) / np.sqrt(2*np.pi*covMat2[1,1])
+
+        return np.log(fxy(x, y)/(fx(x)*fy(y)))
+    
+    

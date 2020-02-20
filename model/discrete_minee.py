@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import numpy as np
-
+from scipy.stats import bernoulli
 
 def _resample(data, batch_size, replace=False):
     # Resample the given data sample.
@@ -13,20 +13,16 @@ def _resample(data, batch_size, replace=False):
     return batch
 
 
-def _uniform_discrete_sample(data, batch_size):
-    # Sample the reference uniform distribution
-    from scipy.stats import bernoulli
-    p = 0.5
-    X = bernoulli.rvs(p, size=batch_size)
-    X[np.where(X==0)] = -1
-    
-    return torch.Tensor(X.reshape(batch_size, 1))
-
 def _uniform_sample(data, batch_size):
     # Sample the reference uniform distribution
     data_min = data.min(dim=0)[0]
     data_max = data.max(dim=0)[0]
-    return (data_max - data_min) * torch.rand((batch_size, data_min.shape[0])) + data_min
+    return (data_max - data_min) * torch.rand((batch_size, 1)) + data_min
+
+def _uniform_discrete_sample(data, batch_size):
+    p = 0.5
+    X = bernoulli.rvs(p, size=batch_size)
+    return torch.Tensor(X.reshape(batch_size, 1))
 
 def _div(net, data, ref):
     # Calculate the divergence estimate using a neural network
@@ -107,11 +103,14 @@ class MINEE():
             batch_XY = _resample(self.XY, batch_size=self.batch_size)
             batch_X = _resample(self.X, batch_size=self.batch_size)
             batch_Y = _resample(self.Y, batch_size=self.batch_size)
-            batch_X_ref = _uniform_discrete_sample(self.X, batch_size=int(
+            batch_X_ref_disc = _uniform_discrete_sample(self.X[:,1], batch_size=int(
                 self.ref_batch_factor * self.batch_size))
+            batch_X_ref_con = _uniform_sample(self.X[:,0], batch_size=int(
+                self.ref_batch_factor * self.batch_size))
+            batch_X_ref = torch.cat((batch_X_ref_con, batch_X_ref_disc), dim=1)
             batch_Y_ref = _uniform_sample(self.Y, batch_size=int(
                 self.ref_batch_factor * self.batch_size))
-            batch_XY_ref = torch.cat((batch_X_ref, batch_Y_ref), dim=1)
+            batch_XY_ref = torch.cat((batch_X_ref_con, batch_X_ref_disc, batch_Y_ref), dim=1)
 
             batch_loss_XY = -_div(self.XY_net, batch_XY, batch_XY_ref)
             batch_loss_XY.backward()
@@ -148,7 +147,7 @@ class MINEE():
             XY, X, Y = self.XY, self.X, self.Y
         else:
             XY = torch.cat((X, Y), dim=1)
-        X_ref = _uniform_discrete_sample(X, batch_size=int(
+        X_ref = _uniform_sample(X, batch_size=int(
             self.ref_batch_factor * X.shape[0]))
         Y_ref = _uniform_sample(Y, batch_size=int(
             self.ref_batch_factor * Y.shape[0]))
